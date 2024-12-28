@@ -12,6 +12,7 @@ struct Song: Identifiable {
 
 // ObservableObject for shared state
 class RadioPlayer: ObservableObject {
+    static let shared = RadioPlayer()
     @Published var nowPlaying: String = "Loading..."
     @Published var lastPlayed: [Song] = []
     @Published var albumArt: URL? = nil
@@ -298,7 +299,7 @@ private func decodeHTMLEntities(_ text: String) -> String {
 
 // ContentView
 struct ContentView: View {
-    @StateObject private var radioPlayer = RadioPlayer()
+    @ObservedObject private var radioPlayer = RadioPlayer.shared
 
     var body: some View {
         VStack(spacing: 20) {
