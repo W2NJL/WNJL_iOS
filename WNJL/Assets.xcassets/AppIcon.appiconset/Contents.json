@@ -1,6 +1,31 @@
 {
   "images" : [
     {
+      "filename" : "apple-touch-icon-1024x1024.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "filename" : "apple-touch-icon-1024x1024 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ],
+      "filename" : "apple-touch-icon-1024x1024 2.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
