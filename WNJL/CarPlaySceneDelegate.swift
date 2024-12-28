@@ -41,71 +41,73 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private func updateCarPlayTemplate() {
         let radioPlayer = RadioPlayer.shared
 
-        // Create album art grid item
-        let albumArtGridItem: CPGridButton = {
-            if let albumArtURL = radioPlayer.albumArt,
-               let imageData = try? Data(contentsOf: albumArtURL),
-               let image = UIImage(data: imageData) {
-                return CPGridButton(titleVariants: [radioPlayer.nowPlaying], image: image) { _ in
-                    print("Album Art Tapped")
-                }
-            } else {
-                // Fallback to default album art
-                let defaultURL = URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png")!
-                let fallbackData = try? Data(contentsOf: defaultURL)
-                let fallbackImage = fallbackData.flatMap { UIImage(data: $0) } ?? UIImage(systemName: "music.note")!
-                return CPGridButton(titleVariants: [radioPlayer.nowPlaying], image: fallbackImage) { _ in
-                    print("Album Art Tapped")
-                }
+        fetchAlbumArtImage(for: radioPlayer.albumArt) { albumArtImage in
+            // Create album art grid item
+            let albumArtGridItem = CPGridButton(
+                titleVariants: [radioPlayer.nowPlaying],
+                image: albumArtImage ?? UIImage(systemName: "music.note")!
+            ) { _ in
+                print("Album Art Tapped")
             }
-        }()
 
-        // Create play/pause grid button
-        let playPauseGridButton = CPGridButton(
-            titleVariants: [radioPlayer.isPlaying ? "Pause" : "Play"],
-            image: UIImage(systemName: radioPlayer.isPlaying ? "pause.circle" : "play.circle")!
-        ) { _ in
-            RadioPlayer.shared.togglePlayPause()
-            self.updateCarPlayTemplate() // Update the template immediately
+            // Create play/pause grid button
+            let playPauseGridButton = CPGridButton(
+                titleVariants: [radioPlayer.isPlaying ? "Pause" : "Play"],
+                image: UIImage(systemName: radioPlayer.isPlaying ? "pause.circle" : "play.circle")!
+            ) { _ in
+                RadioPlayer.shared.togglePlayPause()
+                self.updateCarPlayTemplate() // Update the template immediately
+            }
+
+            // Create the grid template
+            let gridTemplate = CPGridTemplate(
+                title: "WNJL.com Radio",
+                gridButtons: [albumArtGridItem, playPauseGridButton]
+            )
+
+            // Set the template on the CarPlay interface
+            DispatchQueue.main.async {
+                self.interfaceController?.setRootTemplate(gridTemplate, animated: true)
+            }
         }
-
-        // Create the grid template
-        let gridTemplate = CPGridTemplate(
-            title: "WNJL.com Radio",
-            gridButtons: [albumArtGridItem, playPauseGridButton]
-        )
-
-        // Set the template on the CarPlay interface
-        interfaceController?.setRootTemplate(gridTemplate, animated: true)
     }
 
     private func fetchAlbumArtImage(for albumArtURL: URL?, completion: @escaping (UIImage?) -> Void) {
-        // Check if a valid album art URL exists
-        if let albumArtURL = albumArtURL {
-            URLSession.shared.dataTask(with: albumArtURL) { data, _, error in
-                if let data = data, let image = UIImage(data: data) {
-                    completion(image)
-                } else {
-                    self.fetchFallbackAlbumArt(completion: completion)
-                }
-            }.resume()
-        } else {
+        guard let albumArtURL = albumArtURL else {
+            // Use the fallback album art if no URL is provided
             fetchFallbackAlbumArt(completion: completion)
+            return
         }
+
+        URLSession.shared.dataTask(with: albumArtURL) { data, _, error in
+            if let data = data, let image = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    completion(image)
+                }
+            } else {
+                // If the fetch fails, use the fallback album art
+                self.fetchFallbackAlbumArt(completion: completion)
+            }
+        }.resume()
     }
 
     private func fetchFallbackAlbumArt(completion: @escaping (UIImage?) -> Void) {
-        // Fetch the fallback album art from the WNJL URL
         guard let fallbackURL = URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png") else {
-            completion(nil)
+            DispatchQueue.main.async {
+                completion(UIImage(systemName: "music.note"))
+            }
             return
         }
 
         URLSession.shared.dataTask(with: fallbackURL) { data, _, error in
             if let data = data, let image = UIImage(data: data) {
-                completion(image)
+                DispatchQueue.main.async {
+                    completion(image)
+                }
             } else {
-                completion(nil)
+                DispatchQueue.main.async {
+                    completion(UIImage(systemName: "music.note"))
+                }
             }
         }.resume()
     }
