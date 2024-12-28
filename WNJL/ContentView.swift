@@ -46,11 +46,13 @@ class RadioPlayer: ObservableObject {
     }
     
     private func setupAudioPlayer() {
-        guard let url = URL(string: "https://d4cbg8stml4t6.cloudfront.net/stream") else {
-            print("Invalid stream URL")
-            return
+        if audioPlayer == nil {
+            guard let url = URL(string: "https://d4cbg8stml4t6.cloudfront.net/stream") else {
+                print("Invalid stream URL")
+                return
+            }
+            audioPlayer = AVPlayer(url: url)
         }
-        audioPlayer = AVPlayer(url: url)
     }
     
     func togglePlayPause() {
@@ -66,13 +68,13 @@ class RadioPlayer: ObservableObject {
     private func setupRemoteCommands() {
         let commandCenter = MPRemoteCommandCenter.shared()
 
-        commandCenter.playCommand.addTarget { [weak self] _ in
-            self?.audioPlayer?.play()
+        commandCenter.playCommand.addTarget { _ in
+            RadioPlayer.shared.togglePlayPause()
             return .success
         }
 
-        commandCenter.pauseCommand.addTarget { [weak self] _ in
-            self?.audioPlayer?.pause()
+        commandCenter.pauseCommand.addTarget { _ in
+            RadioPlayer.shared.togglePlayPause()
             return .success
         }
     }

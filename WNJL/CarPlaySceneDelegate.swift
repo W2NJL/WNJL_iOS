@@ -46,7 +46,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
             if let albumArtURL = radioPlayer.albumArt,
                let imageData = try? Data(contentsOf: albumArtURL),
                let image = UIImage(data: imageData) {
-                return CPGridButton(titleVariants: ["Now Playing"], image: image) { _ in
+                return CPGridButton(titleVariants: [radioPlayer.nowPlaying], image: image) { _ in
                     print("Album Art Tapped")
                 }
             } else {
@@ -54,7 +54,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
                 let defaultURL = URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png")!
                 let fallbackData = try? Data(contentsOf: defaultURL)
                 let fallbackImage = fallbackData.flatMap { UIImage(data: $0) } ?? UIImage(systemName: "music.note")!
-                return CPGridButton(titleVariants: ["Now Playing"], image: fallbackImage)  { _ in
+                return CPGridButton(titleVariants: [radioPlayer.nowPlaying], image: fallbackImage) { _ in
                     print("Album Art Tapped")
                 }
             }
@@ -62,15 +62,16 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
 
         // Create play/pause grid button
         let playPauseGridButton = CPGridButton(
-            titleVariants: ["Play/Pause"],
+            titleVariants: [radioPlayer.isPlaying ? "Pause" : "Play"],
             image: UIImage(systemName: radioPlayer.isPlaying ? "pause.circle" : "play.circle")!
         ) { _ in
-            radioPlayer.togglePlayPause()
+            RadioPlayer.shared.togglePlayPause()
+            self.updateCarPlayTemplate() // Update the template immediately
         }
 
         // Create the grid template
         let gridTemplate = CPGridTemplate(
-            title: "WNJL Radio",
+            title: "WNJL.com Radio",
             gridButtons: [albumArtGridItem, playPauseGridButton]
         )
 
