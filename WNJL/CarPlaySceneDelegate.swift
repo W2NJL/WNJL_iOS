@@ -42,12 +42,12 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         let radioPlayer = RadioPlayer.shared
 
         fetchAlbumArtImage(for: radioPlayer.albumArt) { albumArtImage in
-            // Create album art grid item
+            // Create album art or app icon grid item
             let albumArtGridItem = CPGridButton(
                 titleVariants: [radioPlayer.nowPlaying],
-                image: albumArtImage ?? UIImage(systemName: "music.note")!
+                image: albumArtImage ?? UIImage(named: "CarPlayIcon")!
             ) { _ in
-                print("Album Art Tapped")
+                print("Album Art or App Icon Tapped")
             }
 
             // Create play/pause grid button

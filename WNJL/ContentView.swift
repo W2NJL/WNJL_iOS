@@ -19,6 +19,7 @@ class RadioPlayer: ObservableObject {
     @Published var lastPlayed: [Song] = []
     @Published var albumArt: URL? = nil
     @Published var isPlaying: Bool = false
+    private var albumArtCache: [String: URL] = [:] // Cache for album art
     
     private var audioPlayer: AVPlayer?
     private var fetchTimer: Timer?
@@ -105,15 +106,39 @@ class RadioPlayer: ObservableObject {
             MPMediaItemPropertyTitle: nowPlaying,
             MPMediaItemPropertyArtist: "WNJL.com Radio"
         ]
-        
-        if let albumArtURL = albumArt,
-           let imageData = try? Data(contentsOf: albumArtURL),
+
+        // Check cache for album art
+        if let cachedAlbumArtURL = albumArtCache[nowPlaying],
+           let imageData = try? Data(contentsOf: cachedAlbumArtURL),
            let image = UIImage(data: imageData) {
             let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
             nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        } else if let defaultImage = UIImage(named: "WNJLLogo") {
+            // Use default image if no album art is available
+            let artwork = MPMediaItemArtwork(boundsSize: defaultImage.size) { _ in defaultImage }
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
         }
-        
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+
+    private func updateNowPlayingInfoWithAlbumArt(
+        nowPlayingInfo: inout [String: Any],
+        albumArtURL: URL?
+    ) {
+        guard let albumArtURL = albumArtURL,
+              let imageData = try? Data(contentsOf: albumArtURL),
+              let image = UIImage(data: imageData) else {
+            // Use default image if album art fails to load
+            if let defaultImage = UIImage(named: "WNJLLogo") { // Ensure "WNJLLogo" exists in Assets
+                let artwork = MPMediaItemArtwork(boundsSize: defaultImage.size) { _ in defaultImage }
+                nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+            }
+            return
+        }
+
+        let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
     }
     
     private func startFetching() {
@@ -134,54 +159,46 @@ class RadioPlayer: ObservableObject {
     
     func fetchNowPlaying() {
         guard let url = URL(string: "https://m1nt0kils7.execute-api.us-east-2.amazonaws.com/prod/currentsong") else { return }
-        
+
         URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             guard let self = self else { return }
-            
+
             // Handle network or server error
             if let error = error {
                 print("Error fetching now playing: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.nowPlaying = "Error fetching song info"
-                }
                 return
             }
-            
-            // Check HTTP response status
-            if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
-                print("Server returned status code \(httpResponse.statusCode)")
-                DispatchQueue.main.async {
-                    self.nowPlaying = "Server error: \(httpResponse.statusCode)"
-                }
-                return
-            }
-            
+
             // Parse the response data
             guard let data = data, let rawText = String(data: data, encoding: .utf8) else {
                 print("Failed to decode response")
-                DispatchQueue.main.async {
-                    self.nowPlaying = "Error decoding song info"
-                }
                 return
             }
-            
-            // Check if the response is a valid song or an error message
-            if rawText.contains("{") || rawText.contains("}") {
-                print("Invalid song data received: \(rawText)")
-                DispatchQueue.main.async {
-                    self.nowPlaying = "No song info available"
-                }
-                return
-            }
-            
-            // If all checks pass, update the currently playing song
+
+            // Update nowPlaying and fetch album art
+            let newSong = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
             DispatchQueue.main.async {
-                self.nowPlaying = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if self.nowPlaying != newSong {
+                    self.nowPlaying = newSong
+                    self.fetchAlbumArt(for: newSong) { [weak self] albumArtURL in
+                        guard let self = self else { return }
+                        if let albumArtURL = albumArtURL {
+                            self.albumArt = albumArtURL
+                        }
+                    }
+                }
             }
         }.resume()
     }
     
     func fetchAlbumArt(for song: String, completion: @escaping (URL?) -> Void) {
+        // Check the cache first
+        if let cachedURL = albumArtCache[song] {
+            completion(cachedURL)
+            return
+        }
+
+        // Parse artist and title
         let components = song.split(separator: " - ", maxSplits: 1).map(String.init)
         guard components.count == 2, let artist = components.first, let title = components.last else {
             completion(URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png"))
@@ -196,7 +213,7 @@ class RadioPlayer: ObservableObject {
             return
         }
 
-        URLSession.shared.dataTask(with: url) { data, _, error in
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
             if let error = error {
                 print("Error fetching album art: \(error.localizedDescription)")
                 completion(URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png"))
@@ -211,7 +228,9 @@ class RadioPlayer: ObservableObject {
             do {
                 let response = try JSONDecoder().decode(AlbumArtResponse.self, from: data)
                 if let largeImage = response.track?.album?.image?.first(where: { $0.size == "large" })?.text {
-                    completion(URL(string: largeImage))
+                    let albumArtURL = URL(string: largeImage)
+                    self?.albumArtCache[song] = albumArtURL // Cache the result
+                    completion(albumArtURL)
                 } else {
                     completion(URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png"))
                 }
@@ -358,11 +377,11 @@ struct ContentView: View {
                      .frame(width: 200, height: 200)
                      .cornerRadius(10)
              } placeholder: {
-                 Image(systemName: "photo")
+                 Image("WNJLLogo") // Use the WNJLLogo from Assets.xcassets
                      .resizable()
                      .scaledToFit()
                      .frame(width: 200, height: 200)
-                     .foregroundColor(.gray)
+                     .cornerRadius(10)
              }
 
              // Now Playing
@@ -388,35 +407,32 @@ struct ContentView: View {
                 .font(.headline)
 
             List(radioPlayer.lastPlayed) { song in
-                HStack {
-                    AsyncImage(url: song.albumArt ?? URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png")) { image in
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 50, height: 50)
-                            .cornerRadius(5)
-                    } placeholder: {
-                        Image(systemName: "photo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 50, height: 50)
-                            .foregroundColor(.gray)
-                    }
-                    
-                    VStack(alignment: .leading) {
-                        Text("\(song.time)")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        Text("\(song.artist) - \(song.title)")
-                            .font(.body)
-                    }
-                
-            
-                }
-            
-            }
-        }
-        .padding()
+                          HStack {
+                              AsyncImage(url: song.albumArt ?? URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png")) { image in
+                                  image
+                                      .resizable()
+                                      .scaledToFit()
+                                      .frame(width: 50, height: 50)
+                                      .cornerRadius(5)
+                              } placeholder: {
+                                  Image("WNJLLogo") // Use the WNJLLogo for fallback
+                                      .resizable()
+                                      .scaledToFit()
+                                      .frame(width: 50, height: 50)
+                                      .cornerRadius(5)
+                              }
+
+                              VStack(alignment: .leading) {
+                                  Text("\(song.time)")
+                                      .font(.subheadline)
+                                      .foregroundColor(.gray)
+                                  Text("\(song.artist) - \(song.title)")
+                                      .font(.body)
+                              }
+                          }
+                      }
+                  }
+                  .padding()
     }
 }
 
