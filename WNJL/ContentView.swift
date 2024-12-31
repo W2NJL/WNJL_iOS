@@ -364,96 +364,89 @@ private func decodeHTMLEntities(_ text: String) -> String {
 }
 
 // ContentView
+import SwiftUI
+
 struct ContentView: View {
     @ObservedObject private var radioPlayer = RadioPlayer.shared
+    @Environment(\.scenePhase) private var scenePhase // Detect scene phase changes
 
     var body: some View {
         VStack(spacing: 20) {
-             // Album Art
-             AsyncImage(url: radioPlayer.albumArt ?? URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png")) { image in
-                 image
-                     .resizable()
-                     .scaledToFit()
-                     .frame(width: 200, height: 200)
-                     .cornerRadius(10)
-             } placeholder: {
-                 Image("WNJLLogo") // Use the WNJLLogo from Assets.xcassets
-                     .resizable()
-                     .scaledToFit()
-                     .frame(width: 200, height: 200)
-                     .cornerRadius(10)
-             }
+            // Album Art
+            AsyncImage(url: radioPlayer.albumArt ?? URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png")) { image in
+                image
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 200, height: 200)
+                    .cornerRadius(10)
+            } placeholder: {
+                Image("WNJLLogo") // Use the WNJLLogo from Assets.xcassets
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 200, height: 200)
+                    .cornerRadius(10)
+            }
 
-             // Now Playing
-             Text("Now Playing")
-                 .font(.headline)
-             Text(radioPlayer.nowPlaying)
-                 .font(.subheadline)
-                 .multilineTextAlignment(.center)
+            // Now Playing
+            Text("Now Playing")
+                .font(.headline)
+            Text(radioPlayer.nowPlaying)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
 
-             // Play/Pause Button
-             Button(action: {
-                 radioPlayer.togglePlayPause()
-             }) {
-                 Image(systemName: radioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                     .resizable()
-                     .frame(width: 50, height: 50)
-             }
+            // Play/Pause Button
+            Button(action: {
+                radioPlayer.togglePlayPause()
+            }) {
+                Image(systemName: radioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    .resizable()
+                    .frame(width: 50, height: 50)
+            }
 
-             Divider()
+            Divider()
 
             // Last 10 Played Songs
             Text("Last 10 Played Songs")
                 .font(.headline)
 
             List(radioPlayer.lastPlayed) { song in
-                          HStack {
-                              AsyncImage(url: song.albumArt ?? URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png")) { image in
-                                  image
-                                      .resizable()
-                                      .scaledToFit()
-                                      .frame(width: 50, height: 50)
-                                      .cornerRadius(5)
-                              } placeholder: {
-                                  Image("WNJLLogo") // Use the WNJLLogo for fallback
-                                      .resizable()
-                                      .scaledToFit()
-                                      .frame(width: 50, height: 50)
-                                      .cornerRadius(5)
-                              }
+                HStack {
+                    AsyncImage(url: song.albumArt ?? URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png")) { image in
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 50, height: 50)
+                            .cornerRadius(5)
+                    } placeholder: {
+                        Image("WNJLLogo") // Use the WNJLLogo for fallback
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 50, height: 50)
+                            .cornerRadius(5)
+                    }
 
-                              VStack(alignment: .leading) {
-                                  Text("\(song.time)")
-                                      .font(.subheadline)
-                                      .foregroundColor(.gray)
-                                  Text("\(song.artist) - \(song.title)")
-                                      .font(.body)
-                              }
-                          }
-                      }
-                  }
-                  .padding()
-    }
-}
-
-// Album Art API Response
-struct AlbumArtResponse: Decodable {
-    struct Track: Decodable {
-        struct Album: Decodable {
-            struct Image: Decodable {
-                let url: String
-
-                private enum CodingKeys: String, CodingKey {
-                    case url = "#text"
+                    VStack(alignment: .leading) {
+                        Text("\(song.time)")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        Text("\(song.artist) - \(song.title)")
+                            .font(.body)
+                    }
                 }
             }
-            let image: [Image]?
         }
-        let album: Album?
+        .padding()
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active {
+                refreshAppState()
+            }
+        }
     }
-    let track: Track?
-}
 
-#Preview {
-    ContentView()
+    private func refreshAppState() {
+        // Refresh the app's state
+        print("App resumed - refreshing state")
+        radioPlayer.fetchNowPlaying()
+        radioPlayer.fetchLastPlayed()
+    }
 }
