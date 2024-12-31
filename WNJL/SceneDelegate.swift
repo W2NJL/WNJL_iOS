@@ -34,10 +34,43 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Release any resources associated with this scene that can be re-created the next time the scene connects.
         // The scene may re-connect later, as its session was not necessarily discarded (see `application:didDiscardSceneSessions` instead).
     }
+    
+    // Helper function to determine if in CarPlay
+    private func isInCarPlay(_ scene: UIScene) -> Bool {
+        if let windowScene = scene as? UIWindowScene {
+            for screen in UIScreen.screens {
+                if screen.traitCollection.userInterfaceIdiom == .carPlay {
+                    return true
+                }
+            }
+        }
+        return false
+    }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
-        // Called when the scene has moved from an inactive state to an active state.
-        // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
+        // Called when the scene becomes active
+        print("Scene became active")
+        
+        if isInCarPlay(scene) {
+            print("Activated in CarPlay")
+            // Automatically start playback in CarPlay
+            if !RadioPlayer.shared.isPlaying {
+                RadioPlayer.shared.togglePlayPause()
+            }
+        } else {
+            print("Activated on iPhone or non-CarPlay device")
+            refreshAppState()
+        }
+    }
+
+    private func refreshAppState() {
+        print("Refreshing app state...")
+        
+        // Update the now playing and last played states in the RadioPlayer
+        RadioPlayer.shared.fetchNowPlaying()
+        RadioPlayer.shared.fetchLastPlayed()
+        
+    
     }
 
     func sceneWillResignActive(_ scene: UIScene) {

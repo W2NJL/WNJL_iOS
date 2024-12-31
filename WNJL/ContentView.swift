@@ -366,6 +366,7 @@ private func decodeHTMLEntities(_ text: String) -> String {
 // ContentView
 import SwiftUI
 
+
 struct ContentView: View {
     @ObservedObject private var radioPlayer = RadioPlayer.shared
     @Environment(\.scenePhase) private var scenePhase // Detect scene phase changes
@@ -436,7 +437,9 @@ struct ContentView: View {
             }
         }
         .padding()
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            print("Scene phase changed from \(oldPhase) to \(newPhase)")
+            
             if newPhase == .active {
                 refreshAppState()
             }
