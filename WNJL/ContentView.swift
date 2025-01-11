@@ -13,18 +13,49 @@ struct Song: Identifiable {
 }
 
 // ObservableObject for shared state
-class RadioPlayer: ObservableObject {
+class RadioPlayer: NSObject, ObservableObject {
     static let shared = RadioPlayer()
     @Published var nowPlaying: String = "Loading..."
     @Published var lastPlayed: [Song] = []
     @Published var albumArt: URL? = nil
     @Published var isPlaying: Bool = false
+    var shouldAutoplay: Bool = false // Default to not autoplaying
+
     private var albumArtCache: [String: URL] = [:] // Cache for album art
     
     private var audioPlayer: AVPlayer?
     private var fetchTimer: Timer?
     
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
+        if keyPath == "status", let playerItem = object as? AVPlayerItem {
+            if playerItem.status == .failed {
+                print("Playback failed. Reinitializing player.")
+                reinitializePlayer()
+            }
+        }
+        
+        if keyPath == "playbackLikelyToKeepUp", let playerItem = object as? AVPlayerItem {
+               if playerItem.isPlaybackLikelyToKeepUp {
+                   print("Buffering complete. Resuming playback if paused.")
+                   if let player = audioPlayer, player.rate == 0 {
+                       player.play()
+                       isPlaying = true
+                   }
+               } else {
+                   print("Buffering...")
+               }
+           }
+    }
     
+    
+    
+    private func reinitializePlayer() {
+        audioPlayer?.pause()
+        audioPlayer = nil
+        setupAudioPlayer()
+        audioPlayer?.play()
+        isPlaying = true
+    }
     
     func convertToLocalTime(gmtTime: String) -> String? {
         // Define the expected format of the input time
@@ -56,7 +87,8 @@ class RadioPlayer: ObservableObject {
         }
     }
     
-    init() {
+    override init() {
+        super.init() // Call the superclass initializer
         setupAudioPlayer()
         setupRemoteCommands()
         configureAudioSession()
@@ -65,7 +97,22 @@ class RadioPlayer: ObservableObject {
     
     deinit {
         stopFetching()
+        
+        // Remove observer to avoid potential crashes
+            audioPlayer?.currentItem?.removeObserver(self, forKeyPath: "status")
+        audioPlayer?.currentItem?.removeObserver(self, forKeyPath: "playbackLikelyToKeepUp")
     }
+    
+    @objc private func handlePlaybackStalled() {
+        print("Playback stalled, attempting to resume...")
+        
+        // Attempt to resume playback
+        if let player = audioPlayer, player.rate == 0 {
+            player.play()
+        }
+    }
+    
+
     
     private func setupAudioPlayer() {
         if audioPlayer == nil {
@@ -74,6 +121,23 @@ class RadioPlayer: ObservableObject {
                 return
             }
             audioPlayer = AVPlayer(url: url)
+
+            // Add observer for buffering status and playback stalled
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handlePlaybackStalled),
+                name: .AVPlayerItemPlaybackStalled,
+                object: audioPlayer?.currentItem
+            )
+            
+            audioPlayer?.currentItem?.addObserver(self, forKeyPath: "status", options: [.new, .initial], context: nil)
+
+            // Only start playback automatically if shouldAutoplay is true
+            if shouldAutoplay {
+                print("Auto-playing due to CarPlay mode")
+                audioPlayer?.play()
+                isPlaying = true
+            }
         }
     }
     
@@ -149,6 +213,13 @@ class RadioPlayer: ObservableObject {
             self?.fetchNowPlaying()
             self?.fetchLastPlayed()
             self?.updateNowPlayingInfo()
+        }
+        
+        Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            guard let self = self, let player = self.audioPlayer else { return }
+            DispatchQueue.main.async {
+                self.isPlaying = player.rate != 0
+            }
         }
     }
     
@@ -300,6 +371,8 @@ class RadioPlayer: ObservableObject {
         }.resume()
     }
     
+    
+    
     private func parseLastPlayed(html: String) -> [Song] {
         var songs: [Song] = []
         
@@ -373,6 +446,16 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 20) {
+            // WNJL Header
+            HStack {
+                Image("WNJLLogo") // Ensure "WNJLLogo" is in Assets.xcassets
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 40, height: 40)
+                Text("WNJL.com Radio")
+                    .font(.headline)
+            }
+            .padding(.bottom, 10) // Add some spacing below the header
             // Album Art
             AsyncImage(url: radioPlayer.albumArt ?? URL(string: "https://www.wnjl.com/assets/wnjl-BioIWmS5.png")) { image in
                 image

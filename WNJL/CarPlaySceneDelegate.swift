@@ -49,11 +49,16 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
             ) { _ in
                 print("Album Art or App Icon Tapped")
             }
+            
+            let playPauseImage = UIImage(systemName: radioPlayer.isPlaying ? "pause.circle" : "play.circle")!
+            let resizedPlayPauseImage = UIGraphicsImageRenderer(size: CGSize(width: 60, height: 60)).image { _ in
+                playPauseImage.draw(in: CGRect(origin: .zero, size: CGSize(width: 60, height: 60)))
+            }
 
             // Create play/pause grid button
             let playPauseGridButton = CPGridButton(
                 titleVariants: [radioPlayer.isPlaying ? "Pause" : "Play"],
-                image: UIImage(systemName: radioPlayer.isPlaying ? "pause.circle" : "play.circle")!
+                image: resizedPlayPauseImage
             ) { _ in
                 RadioPlayer.shared.togglePlayPause()
                 self.updateCarPlayTemplate() // Update the template immediately
